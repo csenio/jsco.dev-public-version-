@@ -1,0 +1,117 @@
+---
+title: How to implement undo/redo in svelte
+slug: undo-across-multiple-stores-in-svelte
+description: A scaleable approach for implementing undo / redo functionality in svelte 3
+readingTime: 8 min
+category: 'Svelte'
+date: '1. January 2020'
+---
+
+import Codesandbox from 'components/blog/codesandbox'
+
+Undo / Redo is an extremely common thing to implement if you build apps on the web. In this article I'll show you how you can build a flexible, production-ready undo/redo system without having to compromise your state management.
+The final api is going to look like this:
+
+```js
+import undoable, { undoTracker } from "./undoable.js";
+// `undoable` acts like a regular writeable store
+const name = undoable("Tom")
+// history get's tracked across stores
+const address = undoable({street: "example street", number: 12})
+...
+// to undo
+undoTracker.undo()
+```
+
+here's an example of how it could look in action
+
+<Codesandbox title="svelte undoable demo" id="svelte-store-just-demo-3hybd" />
+
+If you're just here for the code, you can get it from [this gist](https://gist.github.com/jescowuester/246b453db80a6755f2d1ea8b15ba3b88).
+
+## How Undo / Redo works
+
+In basic terms, `undo` undoes your latest change. `Redo` reapplies it.
+This means we need to keep a list of all the changes a user did, and a list of all the changes he's undone.
+For example if the user clicks the "+" button in the example above he changes the count from 1 to 2. So we can save our "change" like this:
+
+```just
+{
+  from: { count: 1 }
+  to: { count: 2 }
+}
+```
+
+If we want to undo we set our value back to the "from" value. If we want to redo we instead use the "to" value from the latest change.
+
+This is all a bit abstract so I made a dirty little visualization of how it works:
+
+<Codesandbox height="620px" title="svelte undoable visualization" id="undo-visualization-hrgno" />
+
+Notice that all the changes, no matter what input they come from, are tracked in the same list. When a user presses undo, he wants the last change **he made** to be undone, no matter where he made it.
+
+## How we can implement it
+
+We have a rough understanding of how it works, let's go code it. Roughly our code is going to look like this:
+
+```
+// Tack all undos and redos
+const undoStore = writable([])
+const redoStore = writable([])
+
+// Undoable is a custom store
+function undoable(initialData) {
+  const store = writable(initialData)
+
+  function _set(newValue) {
+    // track the change in our undoStore
+    store.set(newValue)
+  }
+
+  function _update(updater) {
+    // track the change in our undoStore
+    store.set(newValue)
+  }
+
+  return {
+    subscribe: store.subscribe,
+    set: _set,
+    update: _update,
+  }
+}
+
+```
+
+We need to track what the value looks like before and after the change. To do this we can use Svelte's "tick" function:
+
+```
+ // pass in the previous value
+ function trackUndoState(previous) {
+    tick().then(() => {
+        // get(store) after tick to get the updated value
+        undoStore.update(stack => ([
+        { from: previous, to: get(store) },
+       ...stack,
+      ])),
+    })
+  }
+```
+
+Implementing undo is just a matter of updating the right stores now.
+
+```
+ function undo() {
+    const [lastUpdate, ...restUpdates] = undoStack
+    // update origin store
+    lastUpdate.store.set(lastUpdate.from)
+    // remove from undo store
+    undoStore.set(restUpdates)
+    // add to redo store
+    redoStore.update((arr) => [lastUpdate, ...arr])
+  }
+```
+
+## Debouncing
+
+Right now if a user types in an input and wants to undo a word he has to undo it letter by letter. To prevent this, we can patch together updates that happen very frequently.
+This is very similar to debouncing an input. Keep in mind that this behavior may not always be wanted, the number input above for example is probably better off not being debounced.

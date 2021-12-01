@@ -1,0 +1,57 @@
+---
+title: How to set up Tailwindcss (jit) with the new Svelte kit
+slug: how-to-set-up-tailwindcss-with-svelte-kit
+description: A quick guide on how to set up svelte kit with tailwindcss
+readingTime: 1 min
+category: 'Svelte'
+date: '29. March 2021'
+---
+
+Svelte kit and the new Tailwindcss just-in-time compiler just got released. Here's a super quick rundown on how to set them up (updated for tailwind 2.1 on the 8/4/2021):
+
+> Remember: Svelte config files need to use the `cjs` extension instead of `js`
+
+### Step 1: Set up the project
+
+```bash
+mkdir my-app
+cd my-app
+npm init svelte@next
+npm install -D tailwindcss autoprefixer
+```
+
+### Step 2: postcss
+
+Create a `postcss.config.cjs` file. Svelte 3 is bundled by Vite which comes with postcss support out of the box.
+
+```js
+module.exports = {
+  plugins: {
+    autoprefixer: {},
+    tailwindcss: {},
+  },
+}
+```
+
+### Step 3: tailwind config
+
+Create a `tailwind.config.cjs` file to enable the just-in-time compiler and add the correct paths to be purged. You can also run `npx tailwind init`
+
+```js
+module.exports = {
+  mode: 'jit',
+  purge: ['./src/**/*.svelte'],
+}
+```
+
+### Step 4: create and import the css file
+
+Add these tags somewhere in your css so that postcss knows where to insert the tailwind styles. A good place to import these is the `$layout.svelte` file.
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+And there you go. If you have any issues, you can [check out the finished example on github](https://github.com/jescowuester/svelte-kit-with-tailwind-jit-example) or shoot me a dm on Twitter.
